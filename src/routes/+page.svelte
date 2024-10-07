@@ -1,32 +1,172 @@
-<script>
-	import Counter from './Counter.svelte';
-	import welcome from '$lib/images/svelte-welcome.webp';
-	import welcome_fallback from '$lib/images/svelte-welcome.png';
+<!-- src/routes/+page.svelte -->
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import {
+		loginDebugUser,
+		loginUser,
+		getAllTodos,
+		addTodo,
+		deleteTodo,
+		updateTodoCompletion
+	} from '$lib/todoService';
+	import TodoList from './TodoList.svelte';
+	import type { Todo_t } from '$lib/types';
+
+	let todos: Todo_t[] = [];
+	let todo: Todo_t = { task: '', isComplete: false, createdAt: new Date(), id: '', deleted: false };
+
+	let user: any = null;
+	let email = '';
+	let password = '';
+	let error = '';
+
+	onMount(() => {
+		loginDebugUser();
+		getTodos();
+	});
+
+	// onMount(() => {
+	//     onAuthStateChanged(auth, (currentUser) => {
+	//         user = currentUser;
+	//         if (user) {
+	//             subscribeToTodos((fetchedTodos) => {
+	//                 todos = fetchedTodos;
+	//             });
+	//         } else {
+	//             todos = [];
+	//         }
+	//     });
+	// });
+
+	async function getTodos() {
+		try {
+			todos = await getAllTodos();
+		} catch (e) {
+			error = 'Error fetching todos';
+		}
+	}
+
+	async function handleAddTodo() {
+		if (todo.task === '') {
+			error = 'Please enter text before adding a todo';
+			return;
+		}
+		error = '';
+		let newTodo = { ...todo, createdAt: new Date() };
+		try {
+			const addedTodo = await addTodo(newTodo);
+			if (addedTodo) {
+				newTodo.id = addedTodo.id;
+				todos = [...todos, newTodo];
+				todo.task = '';
+			}
+		} catch (e) {
+			error = 'Error adding todo to Firestore';
+		}
+	}
+
+	async function handleUpdateTodoStatus(todo: Todo_t) {
+		try {
+			await updateTodoCompletion(todo);
+		} catch (e) {
+			error = 'Error updating todo status';
+		}
+	}
+
+	async function handleDeleteTodo(todo: Todo_t) {
+		try {
+			await deleteTodo(todo);
+			todos = todos.filter((t) => t.id !== todo.id);
+		} catch (e) {
+			error = 'Error deleting todo';
+		}
+	}
+
+	// async function register() {
+	// 	try {
+	// 		await createUserWithEmailAndPassword(auth, email, password);
+	// 		error = '';
+	// 	} catch (e: any) {
+	// 		error = e.message;
+	// 	}
+	// }
+
+	async function login() {
+		try {
+			await loginUser(email, password);
+			error = '';
+		} catch (e: any) {
+			error = e.message;
+		}
+	}
+
+	// async function logout() {
+	// 	try {
+	// 		await signOut(auth);
+	// 		error = '';
+	// 	} catch (e: any) {
+	// 		error = e.message;
+	// 	}
+	// }
+
+	function checkKeydownForEnter(event: any) {
+		if (event.key === 'Enter') {
+			handleAddTodo();
+		}
+	}
 </script>
 
 <svelte:head>
-	<title>Home</title>
-	<meta name="description" content="Svelte demo app" />
+	<title>Todo</title>
+	<meta name="description" content="Todo Page" />
 </svelte:head>
 
-<section>
-	<h1>
-		<span class="welcome">
-			<picture>
-				<source srcset={welcome} type="image/webp" />
-				<img src={welcome_fallback} alt="Welcome" />
-			</picture>
-		</span>
+<div class="text-column">
+	<div class="container">
+		<!-- {#if user} -->
+		<div class="input-container">
+			<input
+				name="text-input"
+				class="text-input"
+				type="text"
+				placeholder="Add a todo"
+				bind:value={todo.task}
+			/>
+			<button on:click={handleAddTodo}>Add</button>
+		</div>
 
-		to your new<br />SvelteKit app
-	</h1>
+		<TodoList {todos} onUpdate={handleUpdateTodoStatus} onDelete={handleDeleteTodo} />
 
-	<h2>
-		try editing <strong>src/routes/+page.svelte</strong>
-	</h2>
+		<!--
+		<button on:click={logout}>Logout</button>
+		 {:else}
+        <div class="auth-container">
+            <input
+                type="email"
+                placeholder="Email"
+                bind:value={email}
+            />
+            <input
+                type="password"
+                placeholder="Password"
+                bind:value={password}
+            />
+            <button on:click={login}>Login</button>
+            <button on:click={register}>Register</button>
+        </div>
+    {/if} -->
 
-	<Counter />
-</section>
+		<div class="error-container">
+			{#if error}
+				<p class="error">{error}</p>
+			{/if}
+		</div>
+	</div>
+</div>
+
+<section />
+
+<svelte:window on:keydown={checkKeydownForEnter} />
 
 <style>
 	section {
@@ -35,25 +175,5 @@
 		justify-content: center;
 		align-items: center;
 		flex: 0.6;
-	}
-
-	h1 {
-		width: 100%;
-	}
-
-	.welcome {
-		display: block;
-		position: relative;
-		width: 100%;
-		height: 0;
-		padding: 0 0 calc(100% * 495 / 2048) 0;
-	}
-
-	.welcome img {
-		position: absolute;
-		width: 100%;
-		height: 100%;
-		top: 0;
-		display: block;
 	}
 </style>
